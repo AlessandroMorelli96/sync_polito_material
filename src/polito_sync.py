@@ -16,7 +16,7 @@ class PolitoWebClass:
     subject_cookie = None
     last_update_remote = None
     last_update_local = None
-    video_lessons = False
+    video_lessons = None
     file_name = 'file_name'
 
     headers = {'User-Agent': 'python-requests'}
@@ -30,10 +30,13 @@ class PolitoWebClass:
         print(" POLITO FILE DOWNLOADER ")
         print("-----------------------")
 
-    def set_user_agent(self, user_agent):
+    def setVideoLessons(self, videoLessons):
+        self.video_lessons = videoLessons
+    
+    def setUserAgent(self, user_agent):
         self.headers['User-Agent'] = user_agent
 
-    def set_download_folder(self, download_folder):
+    def setDownloadFolder(self, download_folder):
         self._mkdir_if_not_exist(download_folder)
         self.download_folder = download_folder
 
@@ -67,11 +70,19 @@ class PolitoWebClass:
 
     def _login(self, username, password):
         if (username is None) and (password is None):
-            user = input("Insert username: ")
-            passw = getpass.getpass("Insert password: ")
+            with open('settings.json', 'r+') as f:
+                data = json.load(f)
+                user = input("Username (sXXXXXX@studenti.polito.it) [{}]: ".format(data['credentials']['username'])) or data['credentials']['username']
+                data['credentials']['username'] = user
+                passw = getpass.getpass("Password: ")
+                data['credentials']['password'] = passw
         else:
             user = username
             passw = password
+
+        with open('settings.json', 'r+') as f:
+            data = json.load(f)
+            self.download_folder = input("Folder [{}]".format(data['download_folder'])) or data['download_folder']
 
         print("Logging in...")
 
@@ -128,6 +139,7 @@ class PolitoWebClass:
             self.subject_cookie = s.cookies
             self._get_path_content(directory, '/')
         print("[ DOWNLOAD COMPLETED ]")
+
     def _get_path_content(self, folder, path, code='0'):
         with requests.session() as s:
             s.cookies = self.subject_cookie
@@ -152,16 +164,14 @@ class PolitoWebClass:
             for res in content['result']:
 
                 if res['name'].startswith('ZZZZZ'):
-                    continue
-                    print("Do you want to dowload also videolesson? Enter:yes, Any:no")
-                    y = input()
-                    if y != "":
+                    if not self.video_lessons:
                         continue
 
                     folder_to_create = os.path.join(folder, "Videolessons")
                     self._mkdir_if_not_exist(folder_to_create)
                     print('Videolessons')
-                    new_path = self._path_join(folder_to_create, "Videolessons")
+                    #new_path = self._path_join(folder_to_create, "Videolessons")
+                    new_path = folder_to_create
                     self._get_video_lessons(folder_to_create, new_path, res['link'], res['id'])
                     continue
 
@@ -184,6 +194,7 @@ class PolitoWebClass:
                         self._file_download(folder, file_name, path, res['code'])
                     else:
                         print("[ UPTODATE ]" + file_name)
+
     def _file_download(self, folder, name, path, code):
         with requests.session() as s:
             s.cookies = self.subject_cookie
@@ -293,11 +304,12 @@ class PolitoWebClass:
                         code)).json()
                 url = base_url_e + urllib.parse.urlencode(data)
 
-        with requests.session() as session:
-            page = session.get(url)
+        with requests.session() as s:
+            s.cookies = self.login_cookie
+            page = s.get(url, headers=self.headers)
 
             if "didattica.polito.it" in url:
-                links = re.findall('href="(.*)".*Video', page.text)
+                links = re.findall('href="(sviluppo\.videolezioni\.vis.*lez=\w*)">', page.text)
                 for i in range(len(links)):
                     links[i] = 'https://didattica.polito.it/pls/portal30/' + html.unescape(links[i])
             elif "elearning.polito.it" in url:
@@ -306,15 +318,31 @@ class PolitoWebClass:
                     links[i] = 'https://elearning.polito.it/gadgets/video/' + html.unescape(links[i])
             else:
                 print("Something went wrong")
+            
+            
 
             video_lesson_counter = 0;
             for link in links:
-                print(link)
                 video_lesson_counter = video_lesson_counter + 1
-                filename = "Videolezione_" + str(video_lesson_counter)
-                print('Scaricando' + filename)
-                file = session.get(link)
-                open(os.path.join(*[self.download_folder, path, filename]), 'wb').write(file.content)
+                filename = "Videolezione_" + str(video_lesson_counter) + ".mp4"
+                print('Scaricando ' + filename)
+                urlLesson = ""
+
+                if os.path.exists(os.path.join(*[path, filename])):
+                    continue
+                
+                r = s.get(link)
+                if "didattica.polito.it" in link:
+                    dlurl = re.findall('href="(.*)".*Video', r.text)[0]
+                    r = s.get('https://didattica.polito.it'+html.unescape(dlurl), allow_redirects=False)
+                    urlLesson = r.headers['location']
+                elif "elearning.polito.it" in lecture_url:
+                    dlurl = re.findall('href="(download.php[^\"]*).*video1', r.text)[0]
+                    r = s.get('https://elearning.polito.it/gadgets/video/' + html.unescape(dlurl), allow_redirects=False)
+                    urlLesson = r.headers['location']
+
+                file = s.get(urlLesson, stream=True)
+                open(os.path.join(*[path, filename]), 'wb').write(file.content)
 
     # STATIC METHODS
 
