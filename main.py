@@ -1,27 +1,23 @@
-import json
-import os
-
 from polito_sync import PolitoWebClass
-#import PolitoWebClass
+
+import json
 
 if __name__ == "__main__":
-    session = PolitoWebClass()
 
     settings = None
 
     try:
-        with open(".settings.json") as s:
+        with open("settings.json") as s:
             settings = json.load(s)
     except:
         print("Error: rename settings file as settings.json")
-
-    session.set_download_folder(settings['download_folder'])
-
-    session.set_file_name('web')
-
+    
+    session = PolitoWebClass()
+    session.setVideoLessons(settings['VideoLessons'])
+    session.setDownloadFolder(settings['download_folder'])
+    session.setUserAgent('Mozilla/5.0')
     if settings['credentials']['enabled']:
         session.login(settings['credentials']['username'], settings['credentials']['password'])
     else:
         session.login()
-
     session.menu()
