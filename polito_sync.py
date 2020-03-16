@@ -189,7 +189,7 @@ class PolitoWebClass:
                 elif res['type'] == 'file':
                     file_name = res['nomefile']
 
-                    if self._need_to_update_this(folder, file_name, res['date']) and ".mp4" not in file_name:
+                    if self._need_to_update_this(folder, file_name, res['date']):# and ".mp4" not in file_name:
                         print("[ DOWNLOAD ]" + file_name)
                         self._file_download(folder, file_name, path, res['code'])
                     else:
