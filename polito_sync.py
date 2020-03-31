@@ -7,7 +7,9 @@ import json
 import re
 import os
 import urllib
-
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from download_materials import DownloaderFile
 
 class PolitoWebClass:
     download_folder = None
@@ -18,6 +20,8 @@ class PolitoWebClass:
     last_update_local = None
     video_lessons = None
     file_name = 'file_name'
+    fileToDownload={}
+    fileToDownload['file'] = []
 
     headers = {'User-Agent': 'python-requests'}
     base_url = 'https://didattica.polito.it/pls/portal30/'
@@ -35,10 +39,6 @@ class PolitoWebClass:
     
     def setUserAgent(self, user_agent):
         self.headers['User-Agent'] = user_agent
-
-    def setDownloadFolder(self, download_folder):
-        self._mkdir_if_not_exist(download_folder)
-        self.download_folder = download_folder
 
     def set_file_name(self, file_name):
         if file_name == 'web':
@@ -70,19 +70,24 @@ class PolitoWebClass:
 
     def _login(self, username, password):
         if (username is None) and (password is None):
-            with open('settings.json', 'r+') as f:
+            with open('settings.json', 'r') as f:
                 data = json.load(f)
-                user = input("Username (sXXXXXX@studenti.polito.it) [{}]: ".format(data['credentials']['username'])) or data['credentials']['username']
-                data['credentials']['username'] = user
-                passw = getpass.getpass("Password: ")
-                data['credentials']['password'] = passw
+                data['credentials']['username'] = input("Username (sXXXXXX@studenti.polito.it) [{}]: ".format(data['credentials']['username'])) or data['credentials']['username']
+                data['credentials']['password'] = getpass.getpass("Password: ") or data['credentials']['password']
+                data['download_folder'] = input("Folder [{}]: ".format(data['download_folder'])) or data['download_folder']
+                user = "s"+data['credentials']['username']+"@studenti.polito.it"
+                passw = data['credentials']['password']
+                self._mkdir_if_not_exist(data['download_folder'])
+                self.download_folder = data['download_folder']
+            
+            with open('settings.json', 'w') as f:
+                json.dump(data, f)
         else:
             user = username
             passw = password
 
         with open('settings.json', 'r+') as f:
             data = json.load(f)
-            self.download_folder = input("Folder [{}]".format(data['download_folder'])) or data['download_folder']
 
         print("Logging in...")
 
@@ -138,7 +143,9 @@ class PolitoWebClass:
 
             self.subject_cookie = s.cookies
             self._get_path_content(directory, '/')
+        
         print("[ DOWNLOAD COMPLETED ]")
+
 
     def _get_path_content(self, folder, path, code='0'):
         with requests.session() as s:
@@ -150,7 +157,6 @@ class PolitoWebClass:
             else:
                 json_result = s.get(self.handler_url, params={'action': 'list', 'path': path},
                                     headers=self.headers)
-
             content = json_result.json()
 
             if path == '/':
@@ -189,23 +195,23 @@ class PolitoWebClass:
                 elif res['type'] == 'file':
                     file_name = res['nomefile']
 
+#                    if not os.path.exists("{}/{}".format(folder, file_name)):
+#                        print("[ DOWNLOAD ]" + file_name)
+#                        self.fileToDownload['file'].append({
+#                            'folder': folder,
+#                            'name': file_name,
+#                            'code': res['code']
+#                        })
+
                     if self._need_to_update_this(folder, file_name, res['date']):# and ".mp4" not in file_name:
                         print("[ DOWNLOAD ]" + file_name)
-                        self._file_download(folder, file_name, path, res['code'])
+                        self.fileToDownload['file'].append({
+                            'folder': folder,
+                            'name': file_name,
+                            'code': res['code']
+                        })
                     else:
                         print("[ UPTODATE ]" + file_name)
-
-    def _file_download(self, folder, name, path, code):
-        with requests.session() as s:
-            s.cookies = self.subject_cookie
-            file = s.get(self.handler_url, params={'action': 'download', 'path': (path + '/' + name), 'code': code},
-                         allow_redirects=True, headers=self.headers)
-            try:
-                name = self._purge_name(name)
-                open(os.path.join(folder, name), 'wb').write(file.content)
-            except ValueError:
-                name = self._purge_name(name, 'strong')
-                open(os.path.join(folder, name), 'wb').write(file.content)
 
     def _menu(self, code='0'):
         if self.subjects_list is None:
@@ -229,6 +235,11 @@ class PolitoWebClass:
                 continue
 
         self._select_subject(x - 1)
+
+        with open('list.json', 'w') as outfile:
+            json.dump(self.fileToDownload, outfile)
+        dfs = DownloaderFile()
+        dfs.startDownload()
         print("Download finished, press ENTER to continue")
         input()
 

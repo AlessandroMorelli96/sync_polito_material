@@ -14,7 +14,6 @@ if __name__ == "__main__":
     
     session = PolitoWebClass()
     session.setVideoLessons(settings['VideoLessons'])
-    session.setDownloadFolder(settings['download_folder'])
     session.setUserAgent('Mozilla/5.0')
     if settings['credentials']['enabled']:
         session.login(settings['credentials']['username'], settings['credentials']['password'])
