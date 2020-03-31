@@ -10,7 +10,7 @@ git clone https://github.com/AlessandroMorelli96/sync_polito_material.git
 cd sync_polito_material
 pip install requirements.txt
 ```
-
+You also need to have chrome and chromedriver (on Mac OS: brew cask install google-chrome chromedriver), to use selenium. For more info read [this](https://selenium-python.readthedocs.io)
 ## HOW TO USE
 
 ```
